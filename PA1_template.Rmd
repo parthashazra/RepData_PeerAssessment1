@@ -1,0 +1,108 @@
+---
+output:
+  html_document: default
+---
+# Course Project 1 
+# Assignment for Week 2 of Reproducible Research
+---
+title: "Coursera_Reproducible_Research"
+author: "Partha Hazra"
+date: "December 3, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Assignment Details
+
+This assignment will be described in multiple parts. You will need to write a report that answers the questions detailed below. Ultimately, you will need to complete the entire assignment in a **single R markdown** document that can be processed by **knitr** and be transformed into an **HTML file**.
+
+It is now possible to collect a large amount of data about personal movement using activity monitoring devices such as a Fitbit, Nike Fuelband, or Jawbone Up. These type of devices are part of the "quantified self" movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. But these data remain under-utilized both because the raw data are hard to obtain and there is a lack of statistical methods and software for processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The data for this assignment can be downloaded from the course web site:
+
+Dataset: Activity monitoring data [52K]
+
+#### 1. Downloading the file as activity.zip to my current working folder
+
+```{r echo=TRUE,results='hide'}
+library("lubridate")
+
+fileurl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+
+download.file(fileurl,"activity.zip")
+unzip("activity.zip")
+
+activity <- read.csv("activity.csv")
+
+activity$date <- ymd(activity$date)
+activity$weekend <- as.factor(ifelse(weekdays(activity$date)=="Saturday" | weekdays(activity$date)=="Sunday","weekend","weekday"))
+activity$dayofweek <- as.factor(weekdays(activity$date))
+```
+
+### 2. Histogram of the total number of steps taken each day
+
+```{r}
+library("dplyr")
+library("ggplot2")
+stepstakenbyday <- summarise(group_by(activity,date),stepsperday = sum(steps,na.rm = TRUE))
+qplot(stepsperday,data=stepstakenbyday,na.rm=TRUE,binwidth=800,xlab='Daily Total steps', ylab='Frequency',main = 'Histogram of total number of steps taken each day')
+```
+
+### 3. Mean and median number of steps taken each day
+
+```{r}
+Average.Steps <- summarise(stepstakenbyday, Average.Steps = mean(stepsperday,na.rm = TRUE),Median.Steps=median(stepsperday,na.rm = TRUE))
+Average.Steps
+```
+ 
+### 4. Time series plot of the average number of steps taken
+
+```{r}
+TS_Average.Steps <- group_by(activity,interval) %>% summarise(Mean.Steps = mean(steps,na.rm = TRUE))
+qplot(interval,Mean.Steps,data=TS_Average.Steps,geom="line",xlab = "Intervals",ylab = "Mean steps taken (grouped by Interval)")
+```
+
+### 5. The 5-minute interval that, on average, contains the maximum number of steps
+
+```{r}
+TS_Average.Steps[which.max(TS_Average.Steps$Mean.Steps),1]
+```
+
+### 6. Code to describe and show a strategy for imputing missing data
+
+```{r}
+
+# 6.1 Calculate and report the total number of missing values in the dataset
+Activity.NA <- activity[which(is.na(activity$steps)),]
+nrow(Activity.NA)
+
+# Subset dataset where there are no NAs
+Activity.Complete <- activity[which(!is.na(activity$steps)),]
+  
+# Filling in all of the missing values in the dataset. 
+Mean.By.Interval <- Activity.Complete %>% group_by(interval) %>% summarise(Mean.Steps=mean(steps))
+Mean.By.Interval$Mean.Steps <- as.integer(Mean.By.Interval$Mean.Steps)
+Activity.NA$steps <- ifelse(Activity.NA$interval==Mean.By.Interval$interval,Mean.By.Interval$Mean.Steps)
+    
+# Create a new dataset that is equal to the original dataset but with the missing data filled in.
+Activity.Impute <- rbind(Activity.Complete,Activity.NA)
+```
+
+### 7. Histogram of the total number of steps taken each day after missing values are imputed
+
+```{r}
+StepsPerDay_Activity.Impute <- summarise(group_by(Activity.Impute,date), Total.Steps = sum(steps))
+qplot(Total.Steps,data=StepsPerDay_Activity.Impute,binwidth=1000,xlab='Total steps per day', ylab='Frequency of Steps',main = 'Histogram of total steps taken each day (after imputation of missing data)')
+```
+
+### 8. Panel plotting comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r}
+Mean.Steps.Grouped <- Activity.Impute %>% group_by(interval,weekend) %>%  summarise(Mean.Steps = mean(steps))
+qplot(interval,Mean.Steps,data=Mean.Steps.Grouped,geom="line",facets=.~weekend,xlab="5 Minute Interval",ylab="Average Number of Steps",main="Average steps pattern between Weekday ~ Weekend")
+```
